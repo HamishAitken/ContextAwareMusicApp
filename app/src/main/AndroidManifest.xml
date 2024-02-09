@@ -27,7 +27,7 @@
 
                 <data
                     android:host="callback"
-                    android:scheme="myapp" />
+                    android:scheme="auratunes" />
             </intent-filter>
         </activity>
         <activity

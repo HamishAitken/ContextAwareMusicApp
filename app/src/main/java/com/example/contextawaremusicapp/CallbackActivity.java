@@ -18,7 +18,7 @@ public class CallbackActivity extends AppCompatActivity {
         Intent intent = getIntent();
         Uri data = intent.getData();
 
-        if (data != null && data.toString().startsWith("myapp://callback")) {
+        if (data != null && data.toString().startsWith("auratunes://callback")) {
             // Extract the authorization code or access token from the URI
             // The exact data you need depends on the Spotify authorization flow you're using
             String code = data.getQueryParameter("code"); // For Authorization Code Flow

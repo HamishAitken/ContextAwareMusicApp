@@ -20,7 +20,6 @@ import java.util.List;
 public class SongsAdapter extends RecyclerView.Adapter<SongsAdapter.SongViewHolder> {
     private List<Song> songs;
     private final OnItemClickListener onItemClickListener;
-    private int currentlyPlayingIndex = -1;
 
     public interface OnItemClickListener {
         void onItemClick(Song song);
@@ -42,17 +41,12 @@ public class SongsAdapter extends RecyclerView.Adapter<SongsAdapter.SongViewHold
     @Override
     public void onBindViewHolder(@NonNull SongViewHolder holder, int position) {
         Song song = songs.get(position);
-        holder.bind(song, position == currentlyPlayingIndex, onItemClickListener);
+        holder.bind(song, onItemClickListener);
     }
 
     @Override
     public int getItemCount() {
-        return songs.size();
-    }
-
-    public void setCurrentlyPlayingIndex(int index) {
-        this.currentlyPlayingIndex = index;
-        notifyDataSetChanged(); // Refresh the adapter to update the highlighted item
+        return songs != null ? songs.size() : 0;
     }
 
     public void updateSongs(List<Song> newSongs) {
@@ -74,16 +68,11 @@ public class SongsAdapter extends RecyclerView.Adapter<SongsAdapter.SongViewHold
             duration = itemView.findViewById(R.id.tvDuration);
         }
 
-        void bind(Song song, boolean isPlaying, OnItemClickListener listener) {
+        void bind(Song song, OnItemClickListener listener) {
             songTitle.setText(song.getName());
             artistName.setText(song.getArtist());
             duration.setText(formatDuration(song.getDuration()));
             Picasso.get().load(song.getAlbumCoverUri()).into(albumCover);
-
-            // Use ContextCompat.getColor() for compatibility with newer API levels
-            itemView.setBackgroundColor(isPlaying ?
-                    ContextCompat.getColor(itemView.getContext(), android.R.color.holo_blue_light) :
-                    ContextCompat.getColor(itemView.getContext(), android.R.color.transparent));
 
             itemView.setOnClickListener(v -> listener.onItemClick(song));
         }

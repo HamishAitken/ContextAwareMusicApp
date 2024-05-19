@@ -2,7 +2,7 @@ package com.example.contextawaremusicapp.model;
 
 import java.util.List;
 
-// Define a class to encapsulate the overall audio features response
+
 public class AudioFeaturesResponse {
     private List<AudioFeature> audio_features;
 
@@ -16,7 +16,6 @@ public class AudioFeaturesResponse {
         return audio_features;
     }
 
-    // Define a class to encapsulate the audio features of a single track
     public static class AudioFeature {
         private double acousticness;
         private String analysis_url;
@@ -37,6 +36,7 @@ public class AudioFeaturesResponse {
         private String uri;
         private double valence;
 
+        // Getters
         public double getAcousticness() {
             return acousticness;
         }
@@ -65,10 +65,46 @@ public class AudioFeaturesResponse {
             return instrumentalness;
         }
 
-        // Continue for other fields...
+        public int getKey() {
+            return key;
+        }
+
+        public double getLiveness() {
+            return liveness;
+        }
+
+        public double getLoudness() {
+            return loudness;
+        }
+
+        public int getMode() {
+            return mode;
+        }
+
+        public double getSpeechiness() {
+            return speechiness;
+        }
+
         public double getTempo() {
             return tempo;
         }
+
+        public int getTimeSignature() {
+            return time_signature;
+        }
+
+        public String getTrackHref() {
+            return track_href;
+        }
+
+        public String getType() {
+            return type;
+        }
+
+        public String getUri() {
+            return uri;
+        }
+
         public double getValence() {
             return valence;
         }
@@ -78,14 +114,24 @@ public class AudioFeaturesResponse {
         public String toString() {
             return "AudioFeature{" +
                     "acousticness=" + acousticness +
+                    ", analysis_url='" + analysis_url + '\'' +
                     ", danceability=" + danceability +
-                    ", id='" + id + '\'' +
+                    ", duration_ms=" + duration_ms +
                     ", energy=" + energy +
+                    ", id='" + id + '\'' +
+                    ", instrumentalness=" + instrumentalness +
+                    ", key=" + key +
+                    ", liveness=" + liveness +
+                    ", loudness=" + loudness +
+                    ", mode=" + mode +
+                    ", speechiness=" + speechiness +
                     ", tempo=" + tempo +
+                    ", time_signature=" + time_signature +
+                    ", track_href='" + track_href + '\'' +
+                    ", type='" + type + '\'' +
+                    ", uri='" + uri + '\'' +
                     ", valence=" + valence +
                     '}';
         }
     }
 }
-
-

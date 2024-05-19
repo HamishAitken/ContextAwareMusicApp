@@ -1,6 +1,16 @@
 package com.example.contextawaremusicapp;
 
 import android.os.Bundle;
+import android.content.Intent;
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.os.Handler;
+import android.util.Log;
+import android.view.View;
+import android.widget.ImageButton;
+import android.widget.ImageView;
+import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.appcompat.app.ActionBarDrawerToggle;
 import androidx.appcompat.app.AppCompatActivity;
@@ -8,40 +18,24 @@ import androidx.appcompat.widget.Toolbar;
 import androidx.core.view.GravityCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.fragment.app.Fragment;
+import androidx.recyclerview.widget.DefaultItemAnimator;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
-
-import android.os.Handler;
-import android.view.View;
-import android.widget.ImageButton;
-import android.widget.ImageView;
-import android.content.Context;
-import android.content.Intent;
-import android.content.SharedPreferences;
-
-import android.util.Log;
-import android.widget.TextView;
-import android.widget.Toast;
-
 
 import com.example.contextawaremusicapp.model.Song;
 import com.example.contextawaremusicapp.repository.SpotifyRepository;
 import com.example.contextawaremusicapp.ui.SongsAdapter;
 import com.google.android.material.navigation.NavigationView;
-
-import com.spotify.android.appremote.api.*;
+import com.spotify.android.appremote.api.ConnectionParams;
+import com.spotify.android.appremote.api.Connector;
+import com.spotify.android.appremote.api.SpotifyAppRemote;
+import com.spotify.sdk.android.auth.AuthorizationClient;
 import com.spotify.sdk.android.auth.AuthorizationRequest;
 import com.spotify.sdk.android.auth.AuthorizationResponse;
-import com.spotify.sdk.android.auth.AuthorizationClient;
 import com.squareup.picasso.Picasso;
 
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedList;
 import java.util.List;
-import java.util.Queue;
-import java.util.stream.Collectors;
-
 
 public class MainActivity extends AppCompatActivity {
 
@@ -56,7 +50,6 @@ public class MainActivity extends AppCompatActivity {
     private DrawerLayout drawerLayout;
     private NavigationView navigationView;
 
-
     // Fields for managing playback and the buffer queue
     private List<Song> bufferList = new ArrayList<>();
     private static final int BUFFER_SIZE = 3; // Including the currently playing song
@@ -64,16 +57,13 @@ public class MainActivity extends AppCompatActivity {
 
     private List<Song> currentContextSongList = new ArrayList<>();
 
-
     private boolean isPlaying = false;
-
 
     // Instantiate SpotifyRepository
     private SpotifyRepository spotifyRepository;
 
     public interface CustomCallback<T> {
         void onSuccess(T result);
-
         void onFailure(Throwable throwable);
     }
 
@@ -97,6 +87,7 @@ public class MainActivity extends AppCompatActivity {
         // Initialize the RecyclerView for the list of songs
         songListRecyclerView = findViewById(R.id.rvSongList);
         songListRecyclerView.setLayoutManager(new LinearLayoutManager(this));
+        songListRecyclerView.setItemAnimator(new DefaultItemAnimator());
 
         // Initialize your songs list
         spotifyRepository = new SpotifyRepository(this);
@@ -104,31 +95,39 @@ public class MainActivity extends AppCompatActivity {
         // Initialize the DrawerLayout and NavigationView for the navigation drawer
         drawerLayout = findViewById(R.id.drawer_layout);
 
-        NavigationView navigationView = findViewById(R.id.nav_view);
+        navigationView = findViewById(R.id.nav_view);
         navigationView.setNavigationItemSelectedListener(item -> {
-            int id = item.getItemId();
             Fragment fragment = null;
+            int id = item.getItemId();
+
             if (id == R.id.nav_options) {
                 fragment = new OptionsFragment();
+            } else if (id == R.id.nav_locations) {
+                fragment = new LocationsFragment();
+            } else if (id == R.id.nav_rules) {
+                fragment = new RulesFragment();
+            } else if (id == R.id.nav_home) {
+                Intent intent = new Intent(getApplicationContext(), MainActivity.class);
+                intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP); // This flag returns to the existing MainActivity, clearing all on top
+                startActivity(intent);
             }
 
+            if (fragment != null) {
+                getSupportFragmentManager().beginTransaction()
+                        .replace(R.id.fragment_container, fragment)
+                        .commit();
+            }
 
-//            if (fragment != null) {
-//                getSupportFragmentManager().beginTransaction()
-//                        .replace(R.id.fragment_container, fragment)
-//                        .commit();
-//            }
-
-            // Close the drawer
-            DrawerLayout drawer = findViewById(R.id.drawer_layout);
-            drawer.closeDrawer(GravityCompat.START);
+            drawerLayout.closeDrawer(GravityCompat.START);
             return true;
         });
 
+        // Set up click listener for imageView2 to open the navigation drawer
+        ImageView imageView2 = findViewById(R.id.imageView2);
+        imageView2.setOnClickListener(v -> drawerLayout.openDrawer(GravityCompat.START));
+
         initializeBufferQueueUI();
         setupPlaybackProgressListener();
-
-        // TODO: Set the navigation item selected listener
 
         // Initialize other UI components like next, previous, and close buttons
         findViewById(R.id.btnNext).setOnClickListener(view -> skipNext());
@@ -141,7 +140,6 @@ public class MainActivity extends AppCompatActivity {
                 this, drawerLayout, toolbar, R.string.navigation_drawer_open, R.string.navigation_drawer_close);
         drawerLayout.addDrawerListener(toggle);
         toggle.syncState();
-
     }
 
     @Override
@@ -160,7 +158,6 @@ public class MainActivity extends AppCompatActivity {
                     final String accessToken = response.getAccessToken();
                     saveAccessToken(accessToken);
                     connectToSpotify();
-
                     break;
 
                 // Auth flow returned an error
@@ -179,6 +176,7 @@ public class MainActivity extends AppCompatActivity {
         SharedPreferences sharedPreferences = getSharedPreferences("SpotifyPrefs", Context.MODE_PRIVATE);
         sharedPreferences.edit().putString("token", token).apply();
     }
+
     @Override
     protected void onStop() {
         super.onStop();
@@ -229,7 +227,7 @@ public class MainActivity extends AppCompatActivity {
                         .setEventCallback(playerState -> {
                             // Update your UI to reflect the current playback state
                             isPlaying = !playerState.isPaused;
-                            playPauseButton.setImageResource(isPlaying ? R.drawable.ic_pause : R.drawable.ic_play);
+                            playPauseButton.setImageResource(isPlaying ? R.drawable._665737_pause_icon : R.drawable._695059_music_play_play_button_player_icon);
                         });
 
                 // Now you can start interacting with App Remote
@@ -246,17 +244,13 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void setupPlaybackProgressListener() {
-        // Assume a playback progress check interval (in milliseconds)
         final int progressCheckInterval = 1000;
-
         final Handler handler = new Handler();
         Runnable progressRunnable = new Runnable() {
             @Override
             public void run() {
                 if (mSpotifyAppRemote != null) {
                     mSpotifyAppRemote.getPlayerApi().getPlayerState().setResultCallback(playerState -> {
-                        // Example logic to check if the song is at its end and transition to the next song
-                        // This is a simplification. A more robust implementation would consider song duration.
                         if (!playerState.isPaused && playerState.playbackPosition >= playerState.track.duration - progressCheckInterval) {
                             skipNext();
                         }
@@ -279,7 +273,7 @@ public class MainActivity extends AppCompatActivity {
             // Track play initiated
             updateCurrentSongUI(currentSong); // Update the UI with the current song's details
         }).setErrorCallback(error -> {
-            //Log.e("SpotifyPlayTrack", "Could not play track", error);
+            // Log.e("SpotifyPlayTrack", "Could not play track", error);
         });
     }
 
@@ -309,6 +303,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
     }
+
     // Method called when new context song list is fetched
     private void onNewContextSongListFetched(List<Song> songList) {
         currentContextSongList.clear();
@@ -317,29 +312,29 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void manageBufferList() {
+        // Check if the buffer list is empty and current song is not playing
+        if (bufferList.isEmpty() && !isPlaying) {
+            // Automatically start playback if not already playing
+            skipNext();
+        }
+
         while (bufferList.size() < BUFFER_SIZE && !currentContextSongList.isEmpty()) {
-            Song songToAdd = currentContextSongList.remove(0); // Remove the first song from the context list to add to the buffer
-            if (!bufferList.contains(songToAdd)) {
-                bufferList.add(songToAdd); // Add to the buffer if it's not already present
+            Song songToAdd = currentContextSongList.remove(0);
+            if (!bufferList.contains(songToAdd) && !songToAdd.equals(currentSong)) {
+                bufferList.add(songToAdd);
             }
         }
-        updateBufferQueueUI(); // Refresh the UI to reflect the new buffer state
-
-        // Automatically start playback if not already playing
-        if (!isPlaying && !bufferList.isEmpty()) {
-            playNextFromBuffer();
-        }
+        songListRecyclerView.smoothScrollToPosition(0);
+        updateBufferQueueUI();
     }
-
 
     // Skip to the next track
     private void skipNext() {
-        // Simulate skipping to the next track in the buffer
         if (!bufferList.isEmpty()) {
-            bufferList.remove(0); // Remove the current song from the queue
-            playNextFromBuffer();
-            updateBufferQueueUI();
-
+            Song nextSong = bufferList.remove(0); // Remove the next song from the buffer to make it current
+            playTrack(mSpotifyAppRemote, nextSong); // Play the new current song
+            manageBufferList(); // Ensure the buffer is refilled correctly
+            updateBufferQueueUI(); // Update the UI to reflect changes
         }
     }
 
@@ -350,33 +345,24 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void playNextFromBuffer() {
-        if (!bufferList.isEmpty()) {
-            Song nextSong = bufferList.get(0); // Look at the next song without removing it
-            playTrack(mSpotifyAppRemote, nextSong);
-            isPlaying = true;
-            manageBufferList();
-        }
-    }
-
     private void updateBufferQueueUI() {
         List<Song> bufferedSongs = new ArrayList<>(bufferList);
-        adapter.updateSongs(bufferedSongs); // Assuming SongsAdapter has an updateSongs method to refresh its data
+        adapter.updateSongs(bufferedSongs);
         songListRecyclerView.setAdapter(adapter); // Refresh the adapter on the RecyclerView
     }
 
     private void onSongClicked(Song song) {
         int index = bufferList.indexOf(song);
         if (index != -1) {
-            // Move the selected song to the start of the buffer (after the currently playing song)
-            bufferList.remove(index);
-            bufferList.add(1, song); // Assuming index 0 is the currently playing song
-            playTrack(mSpotifyAppRemote, song);
-            manageBufferList();
+            bufferList.remove(index); // Remove the song from the buffer list
+            playTrack(mSpotifyAppRemote, song); // Play the song immediately
+            manageBufferList(); // Update and refill the buffer list as needed
+            updateBufferQueueUI(); // Update the UI with the new state of the buffer
         }
     }
 
     private void updateCurrentSongUI(Song song) {
+        currentSong = song;
         ImageView albumCoverView = findViewById(R.id.currentSongAlbumCover);
         TextView titleView = findViewById(R.id.currentSongTitle);
         TextView artistView = findViewById(R.id.currentSongArtist);
@@ -385,22 +371,25 @@ public class MainActivity extends AppCompatActivity {
         titleView.setText(song.getName());
         artistView.setText(song.getArtist());
         Picasso.get().load(song.getAlbumCoverUri()).into(albumCoverView);
-        durationView.setText(song.getDuration());
+        durationView.setText(formatDuration(song.getDuration()));
+    }
 
+    private String formatDuration(int duration) {
+        long minutes = duration / 60000;
+        long seconds = (duration % 60000) / 1000;
+        return String.format("%02d:%02d", minutes, seconds);
     }
 
     private void onPlayPauseButtonClicked(View view) {
         if (mSpotifyAppRemote != null && mSpotifyAppRemote.isConnected()) {
             if (isPlaying) {
                 mSpotifyAppRemote.getPlayerApi().pause();
-                playPauseButton.setImageResource(R.drawable.ic_play);
+                playPauseButton.setImageResource(R.drawable._695059_music_play_play_button_player_icon);
             } else {
                 mSpotifyAppRemote.getPlayerApi().resume();
-                playPauseButton.setImageResource(R.drawable.ic_pause);
+                playPauseButton.setImageResource(R.drawable._665737_pause_icon);
             }
             isPlaying = !isPlaying; // Toggle the state
         }
     }
-
-
 }

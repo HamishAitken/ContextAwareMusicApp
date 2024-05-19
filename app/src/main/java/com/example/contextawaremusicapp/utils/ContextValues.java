@@ -19,7 +19,7 @@ public class ContextValues {
 
     // Enum for different types of activities
     public enum Activity {
-        WALKING, RUNNING, DRIVING
+        STILL, WALKING, RUNNING, DRIVING
     }
 
     private Location location;

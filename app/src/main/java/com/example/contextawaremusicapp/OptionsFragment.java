@@ -4,48 +4,53 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Button;
+import android.widget.SeekBar;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
 
 import com.example.contextawaremusicapp.databinding.FragmentOptionsBinding;
+import com.example.contextawaremusicapp.repository.SpotifyRepository;
 
 public class OptionsFragment extends Fragment {
 
     private FragmentOptionsBinding binding;
-
+    private SpotifyRepository spotifyRepository;
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
         // Inflate the layout for this fragment
         View view = inflater.inflate(R.layout.fragment_options, container, false);
+        binding = FragmentOptionsBinding.bind(view);
 
-        Button btnRefresh = view.findViewById(R.id.btnRefreshSpotifyData);
-        btnRefresh.setOnClickListener(v -> {
-            // Call the method to refresh Spotify data.
-            refreshSpotifyData();
-        });
+        spotifyRepository = new SpotifyRepository(getContext());
 
-        // You can add more controls like a SeekBar for recommendation ratio here.
+        SeekBar seekBar = binding.seekBar;
+        seekBar.setProgress(spotifyRepository.getRecommendationRatio()); // Set initial position
 
-        return view;
-    }
+        seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            int progressChanged = 0;
 
-    public void onViewCreated(@NonNull View view, Bundle savedInstanceState) {
-        super.onViewCreated(view, savedInstanceState);
-
-        binding.btnRefreshSpotifyData.setOnClickListener(new View.OnClickListener() {
             @Override
-            public void onClick(View view) {
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                progressChanged = progress;
+            }
 
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+                // Do something here if you like
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+                spotifyRepository.setRecommendationRatio(progressChanged);
+                Toast.makeText(getContext(), "Recommendation ratio set to: " + progressChanged + "%", Toast.LENGTH_SHORT).show();
             }
         });
-    }
 
-    private void refreshSpotifyData() {
-        // Implement the refresh functionality.
+        return view;
     }
 
     @Override
@@ -53,5 +58,4 @@ public class OptionsFragment extends Fragment {
         super.onDestroyView();
         binding = null;
     }
-
 }

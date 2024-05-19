@@ -4,6 +4,7 @@ import com.example.contextawaremusicapp.model.AlbumsResponse;
 import com.example.contextawaremusicapp.model.AudioFeaturesResponse;
 import com.example.contextawaremusicapp.model.PlaylistTracksResponse;
 import com.example.contextawaremusicapp.model.PlaylistsResponse;
+import com.example.contextawaremusicapp.model.RecommendationsResponse;
 import com.example.contextawaremusicapp.model.SeveralTracksResponse;
 import com.example.contextawaremusicapp.model.UserSavedTracksResponse;
 
@@ -54,5 +55,15 @@ public interface SpotifyService {
     Call<AudioFeaturesResponse> getAudioFeaturesForTracks(
             @Header("Authorization") String authToken,
             @Query("ids") String trackIds
+    );
+
+    @GET("/v1/recommendations")
+    Call<RecommendationsResponse> getRecommendations(
+            @Header("Authorization") String authToken,
+            @Query("seed_tracks") String seedTracks,
+            @Query("limit") int limit,
+            @Query("target_tempo") Double targetTempo,
+            @Query("target_energy") Double targetEnergy,
+            @Query("target_valence") Double targetValence
     );
 }

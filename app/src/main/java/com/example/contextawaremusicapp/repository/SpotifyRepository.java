@@ -4,18 +4,17 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.util.Log;
 
-import retrofit2.Call;
-import retrofit2.Response;
-
 import com.example.contextawaremusicapp.model.AlbumsResponse;
 import com.example.contextawaremusicapp.model.AudioFeaturesResponse;
 import com.example.contextawaremusicapp.model.PlaylistTracksResponse;
 import com.example.contextawaremusicapp.model.PlaylistsResponse;
+import com.example.contextawaremusicapp.model.RecommendationsResponse;
 import com.example.contextawaremusicapp.model.SeveralTracksResponse;
 import com.example.contextawaremusicapp.model.Song;
 import com.example.contextawaremusicapp.model.UserSavedTracksResponse;
 import com.example.contextawaremusicapp.network.SpotifyService;
 import com.example.contextawaremusicapp.utils.ContextAlgorithm;
+import com.example.contextawaremusicapp.utils.ContextManager;
 import com.example.contextawaremusicapp.utils.ContextValues;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
@@ -24,37 +23,56 @@ import java.io.IOException;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import retrofit2.Call;
 import retrofit2.Callback;
+import retrofit2.Response;
 import retrofit2.Retrofit;
 import retrofit2.converter.gson.GsonConverterFactory;
 
 public class SpotifyRepository {
     private SpotifyService spotifyService;
+    private ContextManager contextManager;
     private Context context;
     private String accessToken;
     private static final String PREFS_NAME = "SpotifyPrefs";
     private static final String KEY_AUDIO_FEATURES = "audio_features";
+    private static final String KEY_RECOMMENDATION_RATIO = "recommendation_ratio";
+
     Retrofit retrofit = new Retrofit.Builder()
             .baseUrl("https://api.spotify.com")
             .addConverterFactory(GsonConverterFactory.create())
             .build();
 
-
     public SpotifyRepository(Context context) {
         this.spotifyService = retrofit.create(SpotifyService.class);
         this.context = context;
         this.accessToken = getAccessToken();
+        this.contextManager = new ContextManager(context); // Initialize the context manager
     }
 
     public interface CustomCallback<T> {
         void onSuccess(T response);
         void onFailure(Throwable t);
+    }
+
+    // Method to set the recommendation ratio
+    public void setRecommendationRatio(int ratio) {
+        SharedPreferences sharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        sharedPreferences.edit().putInt(KEY_RECOMMENDATION_RATIO, ratio).apply();
+    }
+
+    // Method to get the recommendation ratio
+    public int getRecommendationRatio() {
+        SharedPreferences sharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        return sharedPreferences.getInt(KEY_RECOMMENDATION_RATIO, 50); // Default to 50 if not set
     }
 
     // Utility method to convert List<AudioFeaturesResponse.AudioFeature> to JSON String
@@ -67,7 +85,8 @@ public class SpotifyRepository {
     private List<AudioFeaturesResponse.AudioFeature> jsonToAudioFeaturesList(String json) {
         Gson gson = new Gson();
         Type type = new TypeToken<List<AudioFeaturesResponse.AudioFeature>>(){}.getType();
-        return gson.fromJson(json, type);
+        List<AudioFeaturesResponse.AudioFeature> audioFeatures = gson.fromJson(json, type);
+        return audioFeatures.stream().filter(java.util.Objects::nonNull).collect(Collectors.toList());
     }
 
     // Call this method to save the fetched library data
@@ -81,12 +100,8 @@ public class SpotifyRepository {
     private List<AudioFeaturesResponse.AudioFeature> loadLibraryData() {
         SharedPreferences sharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         String json = sharedPreferences.getString(KEY_AUDIO_FEATURES, null);
-        Log.d("SpotifyRepository",json);
-        if (json == null) {
-            return Collections.emptyList();
-        } else {
-            return jsonToAudioFeaturesList(json);
-        }
+        if (json == null) return new ArrayList<>(); // Return empty list if no data is found
+        return jsonToAudioFeaturesList(json);
     }
 
     // Method to refresh the library data from the API and save it
@@ -127,17 +142,18 @@ public class SpotifyRepository {
         }
     }
 
-
     public void generateUserPlaylist(CustomCallback<List<Song>> callback) {
         // Ensure library data is fetched and get audio features
         ensureLibraryDataIsFetched(new CustomCallback<List<AudioFeaturesResponse.AudioFeature>>() {
             @Override
             public void onSuccess(List<AudioFeaturesResponse.AudioFeature> audioFeatures) {
-                // Process the audio features with your context algorithm
+                // Get the current context
                 ContextValues currentContext = contextManager.getCurrentContext();
-                List<AudioFeaturesResponse.AudioFeature> filteredFeatures = ContextAlgorithm.filterSongsByContext(audioFeatures, currentContext);
 
-                // Use the processed audio features to generate a list of track IDs
+                // Filter and sort songs based on the current context
+                List<AudioFeaturesResponse.AudioFeature> filteredFeatures = ContextAlgorithm.filterSongsByContext(audioFeatures, currentContext, context);
+
+                // Use the processed audio features to generate a list of unique track IDs
                 List<String> trackIds = filteredFeatures.stream()
                         .map(AudioFeaturesResponse.AudioFeature::getId)
                         .collect(Collectors.toList());
@@ -166,6 +182,35 @@ public class SpotifyRepository {
         });
     }
 
+
+    public void fetchRecommendations(List<String> seedTracks, int limit, Map<String, Double> targetAttributes, CustomCallback<List<Song>> callback) {
+        String seedTracksString = String.join(",", seedTracks);
+        spotifyService.getRecommendations(
+                "Bearer " + accessToken,
+                seedTracksString,
+                limit,
+                targetAttributes.get("tempo"),
+                targetAttributes.get("energy"),
+                targetAttributes.get("valence")
+        ).enqueue(new Callback<RecommendationsResponse>() {
+            @Override
+            public void onResponse(Call<RecommendationsResponse> call, Response<RecommendationsResponse> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    List<Song> recommendedSongs = response.body().getTracks().stream()
+                            .map(track -> new Song(track.getId(), track.getName(), track.getArtists().get(0).getName(), track.getAlbum().getImages().get(0).getUrl(), track.getDurationMs()))
+                            .collect(Collectors.toList());
+                    callback.onSuccess(recommendedSongs);
+                } else {
+                    callback.onFailure(new IOException("Failed to fetch recommendations"));
+                }
+            }
+
+            @Override
+            public void onFailure(Call<RecommendationsResponse> call, Throwable t) {
+                callback.onFailure(t);
+            }
+        });
+    }
 
     private void fetchUserLibraryData(CustomCallback<List<String>> finalCallback) {
         Set<String> trackIds = new HashSet<>();
@@ -212,9 +257,7 @@ public class SpotifyRepository {
                     }
                 } else {
                     // API call was not successful; proceed to avoid deadlock
-
-                    Log.e("SpotifyRepository", "API call failed: in onResponse ");
-
+                    Log.e("SpotifyRepository", "API call failed: " + response.message());
                     onComplete.run();
                 }
             }
@@ -222,7 +265,7 @@ public class SpotifyRepository {
             @Override
             public void onFailure(Call<UserSavedTracksResponse> call, Throwable t) {
                 // API call failed; proceed to avoid deadlock
-                Log.e("SpotifyRepository", "API call failed: in onFailure" + t.getMessage());
+                Log.e("SpotifyRepository", "API call failed: " + t.getMessage());
                 onComplete.run();
             }
         });
@@ -335,7 +378,6 @@ public class SpotifyRepository {
         });
     }
 
-
     private void fetchAudioFeaturesForTracks(List<String> trackIds, CustomCallback<List<AudioFeaturesResponse.AudioFeature>> customCallback) {
         fetchAudioFeaturesBatch(trackIds, 0, new ArrayList<>(), customCallback);
     }
@@ -371,21 +413,8 @@ public class SpotifyRepository {
         });
     }
 
-//    private List<Song> filterSongsByContext(AudioFeatures audioFeatures, ContextValues contextValues) {
-//        // Implement the logic to filter and sort the songs based on context values
-//        return new ArrayList<>();
-//    }
-//
-//    private void fetchRecommendations(List<Song> filteredSongs, ContextValues contextValues, UserOptions options, Callback<List<Song>> callback) {
-//        // Use the Spotify API to get recommendations based on the filtered list
-//        // This is a simplified version assuming we have a function to build seed parameters
-//        String seedParams = buildSeedParamsForRecommendations(filteredSongs);
-//        spotifyService.getRecommendations(/* parameters */).enqueue(new retrofit2.Callback<RecommendationsResponse>() {
-//            // handle success and failure appropriately
-//        });
-//    }
-
     public void createFinalPlaylist(List<String> filteredSongs, CustomCallback<List<Song>> callback) {
+        Log.d("SpotifyRepository", getTrackIdsString(filteredSongs));
         spotifyService.getSeveralTracks("Bearer " + accessToken, getTrackIdsString(filteredSongs)).enqueue(new Callback<SeveralTracksResponse>() {
             @Override
             public void onResponse(Call<SeveralTracksResponse> call, Response<SeveralTracksResponse> response) {
@@ -427,13 +456,19 @@ public class SpotifyRepository {
         });
     }
 
-
     private String getTrackIdsString(List<String> trackIds) {
         StringBuilder builder = new StringBuilder();
-        for (String id : trackIds) {
-            builder.append(id).append(",");
+
+        // Shuffle the list to randomize the order
+        Collections.shuffle(trackIds);
+
+        // Limit to the first 50 IDs after shuffling
+        int limit = Math.min(trackIds.size(), 50);
+        for (int i = 0; i < limit; i++) {
+            builder.append(trackIds.get(i)).append(",");
         }
-        // Remove the last comma
+
+        // Remove the last comma if the builder has content
         if (builder.length() > 0) {
             builder.deleteCharAt(builder.length() - 1);
         }
@@ -449,10 +484,8 @@ public class SpotifyRepository {
         return null; // No album cover available
     }
 
-
     private String getAccessToken() {
         SharedPreferences sharedPreferences = context.getSharedPreferences("SpotifyPrefs", Context.MODE_PRIVATE);
-
         return sharedPreferences.getString("token", null); // 'null' is the default value if the token doesn't exist
     }
 }
